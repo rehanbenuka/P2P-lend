@@ -1,0 +1,22 @@
+{
+  "name": "p2p-lend-contracts",
+  "version": "1.0.0",
+  "description": "Smart contracts for P2P lending with credit score oracle",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "hardhat coverage",
+    "deploy:local": "hardhat run scripts/deploy/01-deploy-oracle.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy/01-deploy-oracle.js --network sepolia",
+    "node": "hardhat node"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0",
+    "dotenv": "^16.3.1"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "@chainlink/contracts": "^0.8.0"
+  }
+}

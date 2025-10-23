@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: p2p-postgres
+    environment:
+      POSTGRES_USER: p2p_user
+      POSTGRES_PASSWORD: p2p_password
+      POSTGRES_DB: p2p_lend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - p2p-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: p2p-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - p2p-network
+
+  hardhat-node:
+    image: node:20-alpine
+    container_name: p2p-hardhat
+    working_dir: /app
+    command: npx hardhat node --hostname 0.0.0.0
+    ports:
+      - "8545:8545"
+    volumes:
+      - ../contracts:/app
+    networks:
+      - p2p-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  p2p-network:
+    driver: bridge

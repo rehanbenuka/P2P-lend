@@ -1,0 +1,144 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+oracle
+oracle-service
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+oracle.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Private keys and secrets
+*.pem
+*.key
+*.crt
+private_keys/
+secrets/
+
+# Build artifacts
+bin/
+build/
+dist/
+
+# Air (live reload) temporary files
+tmp/
+.air.toml
+
+# Debug files
+debug
+__debug_bin
+
+# Test cache
+.cache/
+
+# Benchmarking results
+*.bench
+
+# Documentation build artifacts
+docs/_build/
+site/
+
+# Profiling data
+*.prof
+*.pprof
+cpu.prof
+mem.prof
+
+# Local configuration
+config.local.yaml
+config.local.yml
+config.local.json
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Node modules (if any frontend tools are used)
+node_modules/
+
+# Redis dump
+dump.rdb
+
+# Docker
+*.dockerignore
+docker-compose.override.yml
+
+# Kubernetes secrets
+*secret*.yaml
+*secret*.yml
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Generated files
+*.gen.go
+*_gen.go
+
+# Mock files (if using gomock or similar)
+*_mock.go
+mock_*.go
+
+# Protocol buffer compiled files
+*.pb.go
+
+# Migration files that are auto-generated
+migrations/*.sql
+
+# Local test data
+testdata/local/
+fixtures/local/
