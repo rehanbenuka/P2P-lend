@@ -56,11 +56,11 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 		cfg.PlaidEnv,
 	)
 
+	// Initialize blockchain data provider (Covalent)
 	blockchainProvider := providers.NewBlockchainDataProvider(
-		cfg.CovalentAPIKey,
-		cfg.MoralisAPIKey,
+		"covalent",
 		cfg.CovalentBaseURL,
-		cfg.MoralisBaseURL,
+		cfg.CovalentAPIKey,
 	)
 
 	blockscoutProvider := providers.NewBlockscoutProvider(
@@ -115,7 +115,7 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 	)
 
 	// Initialize handlers
-	scoreHandler := handlers.NewScoreHandler(enhancedService)
+	scoreHandler := handlers.NewScoreHandler(baseService)
 	providerHandler := handlers.NewProviderHandler(enhancedService)
 
 	// Health check

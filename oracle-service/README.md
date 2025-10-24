@@ -177,6 +177,42 @@ API_KEY=your_api_key
 REDIS_URL=redis://localhost:6379
 ```
 
+### Real Data Sources Configuration
+
+For production use with real-world data sources, configure these additional environment variables:
+
+```env
+# Provider Configuration
+USE_MOCK_DATA=false
+
+# Credit Bureau Configuration
+CREDIT_BUREAU_PROVIDER=experian
+CREDIT_BUREAU_URL=https://api.experian.com
+CREDIT_BUREAU_API_KEY=your_credit_bureau_api_key
+
+# Plaid Configuration (Bank Data)
+PLAID_CLIENT_ID=your_plaid_client_id
+PLAID_SECRET=your_plaid_secret
+PLAID_ENV=sandbox
+
+# Blockchain Data Providers
+COVALENT_API_KEY=your_covalent_api_key
+COVALENT_BASE_URL=https://api.covalenthq.com/v1
+
+MORALIS_API_KEY=your_moralis_api_key
+MORALIS_BASE_URL=https://deep-index.moralis.io/api/v2
+
+# Blockscout Configuration (Preferred - Free)
+BLOCKSCOUT_BASE_URL=https://eth.blockscout.com
+BLOCKSCOUT_CHAIN=ethereum
+PREFER_BLOCKSCOUT=true
+```
+
+**Free Data Sources:**
+- **Blockscout**: Free blockchain data (no API key required)
+- **Public RPC endpoints**: Some free tiers available
+- **Mock data**: Set `USE_MOCK_DATA=true` for testing
+
 ## Usage
 
 ### Running the Service

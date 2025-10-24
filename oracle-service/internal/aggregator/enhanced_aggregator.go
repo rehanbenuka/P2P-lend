@@ -207,36 +207,42 @@ func (a *EnhancedOnChainAggregator) FetchMetrics(ctx context.Context, address st
 	var blockchainData *providers.BlockchainSummary
 	var err error
 
-	if a.useMockData {
-		logger.Info("Using mock blockchain data")
+	// Always try real data first, regardless of useMockData setting
+	// Try Blockscout first if preferred
+	if a.preferBlockscout && a.blockscoutProvider != nil {
+		logger.Info("Fetching from Blockscout")
+		blockscoutData, err := a.blockscoutProvider.GetAnalytics(ctx, address)
+		if err != nil {
+			logger.Error("Failed to fetch from Blockscout, trying alternative provider", zap.Error(err))
+		} else {
+			blockchainData = a.blockscoutProvider.ConvertToBlockchainSummary(blockscoutData)
+		}
+	}
+
+	// Fallback to Covalent/Moralis if Blockscout failed or not preferred
+	if blockchainData == nil {
+		logger.Info("Fetching from blockchain data provider (Covalent/Moralis)")
+		blockchainData, err = a.blockchainProvider.GetBlockchainSummary(ctx, address, "1") // Ethereum mainnet
+		if err != nil {
+			logger.Error("Failed to fetch from blockchain provider, trying direct RPC", zap.Error(err))
+		}
+	}
+
+	// Final fallback to direct RPC if all providers failed
+	if blockchainData == nil {
+		logger.Warn("All blockchain providers failed, falling back to direct RPC")
+		return a.ethClient.FetchMetrics(ctx, address)
+	}
+
+	// Only use mock data if explicitly requested AND all real data sources failed
+	if a.useMockData && blockchainData == nil {
+		logger.Warn("Using mock data as last resort")
 		// Use Blockscout mock data if preferred
 		if a.preferBlockscout && a.blockscoutProvider != nil {
 			blockscoutData := a.blockscoutProvider.MockBlockscoutData(address)
 			blockchainData = a.blockscoutProvider.ConvertToBlockchainSummary(blockscoutData)
 		} else {
 			blockchainData = a.blockchainProvider.MockBlockchainData(address)
-		}
-	} else {
-		// Try Blockscout first if preferred
-		if a.preferBlockscout && a.blockscoutProvider != nil {
-			logger.Info("Fetching from Blockscout")
-			blockscoutData, err := a.blockscoutProvider.GetAnalytics(ctx, address)
-			if err != nil {
-				logger.Error("Failed to fetch from Blockscout, trying alternative provider", zap.Error(err))
-			} else {
-				blockchainData = a.blockscoutProvider.ConvertToBlockchainSummary(blockscoutData)
-			}
-		}
-
-		// Fallback to Covalent/Moralis if Blockscout failed or not preferred
-		if blockchainData == nil {
-			logger.Info("Fetching from blockchain data provider (Covalent/Moralis)")
-			blockchainData, err = a.blockchainProvider.GetBlockchainSummary(ctx, address, "1") // Ethereum mainnet
-			if err != nil {
-				logger.Error("Failed to fetch from blockchain provider, falling back to direct RPC", zap.Error(err))
-				// Fallback to direct RPC call
-				return a.ethClient.FetchMetrics(ctx, address)
-			}
 		}
 	}
 

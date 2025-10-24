@@ -60,7 +60,7 @@ func Load() *Config {
 		ContractAddress: os.Getenv("CONTRACT_ADDRESS"),
 
 		// Provider
-		UseMockData: getBoolEnv("USE_MOCK_DATA", true),
+		UseMockData: getBoolEnv("USE_MOCK_DATA", false),
 
 		// Credit Bureau
 		CreditBureauProvider: getEnv("CREDIT_BUREAU_PROVIDER", "experian"),

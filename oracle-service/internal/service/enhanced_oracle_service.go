@@ -7,8 +7,6 @@ import (
 	"github.com/yourusername/p2p-lend/oracle-service/internal/aggregator"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/models"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/providers"
-	"github.com/yourusername/p2p-lend/oracle-service/internal/repository"
-	"github.com/yourusername/p2p-lend/oracle-service/internal/scoring"
 	"github.com/yourusername/p2p-lend/oracle-service/pkg/logger"
 	"go.uber.org/zap"
 )
