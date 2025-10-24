@@ -10,6 +10,7 @@ import (
 	"github.com/yourusername/p2p-lend/oracle-service/internal/blockchain"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/config"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/models"
+	"github.com/yourusername/p2p-lend/oracle-service/internal/providers"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/repository"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/scoring"
 	"github.com/yourusername/p2p-lend/oracle-service/internal/service"
@@ -30,12 +31,57 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 	repo := repository.NewScoreRepository(db)
 	scoringEngine := scoring.NewEngine()
 
-	onChainAgg, err := aggregator.NewOnChainAggregator(cfg.EthereumRPC)
+	// Initialize basic aggregators (for fallback)
+	basicOnChainAgg, err := aggregator.NewOnChainAggregator(cfg.EthereumRPC)
 	if err != nil {
 		logger.Fatal("Failed to initialize on-chain aggregator", zap.Error(err))
 	}
 
-	offChainAgg := aggregator.NewOffChainAggregator("", "", "")
+	basicOffChainAgg := aggregator.NewOffChainAggregator(
+		cfg.CreditBureauURL,
+		"", // bankAPIURL - not used in basic mode
+		cfg.CreditBureauAPIKey,
+	)
+
+	// Initialize 3rd party providers
+	creditBureauProvider := providers.NewCreditBureauProvider(
+		cfg.CreditBureauProvider,
+		cfg.CreditBureauURL,
+		cfg.CreditBureauAPIKey,
+	)
+
+	plaidProvider := providers.NewPlaidProvider(
+		cfg.PlaidClientID,
+		cfg.PlaidSecret,
+		cfg.PlaidEnv,
+	)
+
+	blockchainProvider := providers.NewBlockchainDataProvider(
+		cfg.CovalentAPIKey,
+		cfg.MoralisAPIKey,
+		cfg.CovalentBaseURL,
+		cfg.MoralisBaseURL,
+	)
+
+	blockscoutProvider := providers.NewBlockscoutProvider(
+		cfg.BlockscoutBaseURL,
+		cfg.BlockscoutChain,
+	)
+
+	// Initialize enhanced aggregators
+	enhancedOffChainAgg := aggregator.NewEnhancedOffChainAggregator(
+		creditBureauProvider,
+		plaidProvider,
+		cfg.UseMockData,
+	)
+
+	enhancedOnChainAgg := aggregator.NewEnhancedOnChainAggregator(
+		blockchainProvider,
+		blockscoutProvider,
+		basicOnChainAgg,
+		cfg.UseMockData,
+		cfg.PreferBlockscout,
+	)
 
 	var blockchainClient *blockchain.OracleClient
 	if cfg.EthereumRPC != "" && cfg.ContractAddress != "" && cfg.PrivateKey != "" {
@@ -49,15 +95,28 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 		}
 	}
 
-	oracleService := service.NewOracleService(
+	// Initialize base oracle service
+	baseService := service.NewOracleService(
 		repo,
 		scoringEngine,
-		onChainAgg,
-		offChainAgg,
+		basicOnChainAgg,
+		basicOffChainAgg,
 		blockchainClient,
 	)
 
-	scoreHandler := handlers.NewScoreHandler(oracleService)
+	// Initialize enhanced oracle service
+	enhancedService := service.NewEnhancedOracleService(
+		baseService,
+		enhancedOnChainAgg,
+		enhancedOffChainAgg,
+		creditBureauProvider,
+		plaidProvider,
+		blockchainProvider,
+	)
+
+	// Initialize handlers
+	scoreHandler := handlers.NewScoreHandler(enhancedService)
+	providerHandler := handlers.NewProviderHandler(enhancedService)
 
 	// Health check
 	router.GET("/health", scoreHandler.HealthCheck)
@@ -69,6 +128,16 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 		v1.GET("/credit-score/:address", scoreHandler.GetCreditScore)
 		v1.POST("/credit-score/update", scoreHandler.UpdateCreditScore)
 		v1.GET("/credit-score/:address/history", scoreHandler.GetScoreHistory)
+
+		// Enhanced credit score routes with 3rd party providers
+		v1.POST("/credit-score/update-with-providers", providerHandler.UpdateWithProviders)
+
+		// Provider routes
+		providers := v1.Group("/providers")
+		{
+			providers.GET("/status", providerHandler.GetProviderStatus)
+			providers.GET("/list", providerHandler.ListAvailableProviders)
+		}
 
 		// Admin routes
 		admin := v1.Group("/admin")
