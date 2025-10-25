@@ -18,10 +18,18 @@ module.exports = {
     },
     localhost: {
       url: "http://127.0.0.1:8545",
+      chainId: 31337,
     },
     sepolia: {
-      url: process.env.SEPOLIA_RPC_URL || "",
+      url: process.env.SEPOLIA_RPC_URL || "https://eth-sepolia.g.alchemy.com/v2/g9qODjDRbPVzokVwdoB2Y",
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 11155111,
+      gasPrice: "auto",
+    },
+    goerli: {
+      url: process.env.GOERLI_RPC_URL || "",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 5,
     },
   },
   paths: {
@@ -33,8 +41,16 @@ module.exports = {
   gasReporter: {
     enabled: process.env.REPORT_GAS === "true",
     currency: "USD",
+    gasPrice: 20,
+    coinmarketcap: process.env.COINMARKETCAP_API_KEY,
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY,
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_API_KEY,
+      goerli: process.env.ETHERSCAN_API_KEY,
+    },
+  },
+  mocha: {
+    timeout: 40000,
   },
 };
