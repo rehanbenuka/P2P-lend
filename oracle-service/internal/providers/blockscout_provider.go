@@ -445,7 +445,209 @@ func GetSupportedBlockscoutChains() map[string]string {
 		"arbitrum": "https://arbitrum.blockscout.com",
 		"zksync":   "https://zksync.blockscout.com",
 		"scroll":   "https://scroll.blockscout.com",
+		"celo":     "https://celo.blockscout.com",
+		"moonbeam": "https://moonbeam.blockscout.com",
 	}
+}
+
+// MultiChainAnalytics represents aggregated data from multiple chains
+type MultiChainAnalytics struct {
+	Address           string                          `json:"address"`
+	TotalBalance      float64                         `json:"total_balance_eth_equivalent"`
+	TotalBalanceUSD   float64                         `json:"total_balance_usd"`
+	ChainData         map[string]*BlockscoutAnalytics `json:"chain_data"`
+	TotalTransactions int                             `json:"total_transactions"`
+	TotalChains       int                             `json:"total_active_chains"`
+	OldestWalletAge   int                             `json:"oldest_wallet_age_days"`
+	FirstTransaction  time.Time                       `json:"first_transaction_date"`
+	LastTransaction   time.Time                       `json:"last_transaction_date"`
+	TotalDeFiInteract int                             `json:"total_defi_interactions"`
+	TotalNFTs         int                             `json:"total_nfts"`
+	TotalGasUsed      float64                         `json:"total_gas_used"`
+	UniqueContracts   int                             `json:"unique_contracts"`
+	ActiveChains      []string                        `json:"active_chains"`
+	LastUpdated       time.Time                       `json:"last_updated"`
+}
+
+// GetMultiChainAnalytics fetches and aggregates data from multiple chains
+func GetMultiChainAnalytics(ctx context.Context, address string, chains []string) (*MultiChainAnalytics, error) {
+	logger.Info("Fetching multi-chain analytics",
+		zap.String("address", address),
+		zap.Strings("chains", chains),
+	)
+
+	supportedChains := GetSupportedBlockscoutChains()
+
+	// Use all supported chains if none specified
+	if len(chains) == 0 {
+		for chain := range supportedChains {
+			chains = append(chains, chain)
+		}
+	}
+
+	result := &MultiChainAnalytics{
+		Address:      address,
+		ChainData:    make(map[string]*BlockscoutAnalytics),
+		ActiveChains: []string{},
+		LastUpdated:  time.Now(),
+	}
+
+	// Channel to collect results from parallel fetches
+	type chainResult struct {
+		chain     string
+		analytics *BlockscoutAnalytics
+		err       error
+	}
+	resultsChan := make(chan chainResult, len(chains))
+
+	// Fetch from all chains in parallel
+	for _, chain := range chains {
+		baseURL, ok := supportedChains[chain]
+		if !ok {
+			logger.Warn("Unsupported chain", zap.String("chain", chain))
+			continue
+		}
+
+		go func(chainName, url string) {
+			provider := NewBlockscoutProvider(url, chainName)
+			analytics, err := provider.GetAnalytics(ctx, address)
+			resultsChan <- chainResult{
+				chain:     chainName,
+				analytics: analytics,
+				err:       err,
+			}
+		}(chain, baseURL)
+	}
+
+	// Collect results
+	activeChains := 0
+	for i := 0; i < len(chains); i++ {
+		select {
+		case res := <-resultsChan:
+			if res.err != nil {
+				logger.Warn("Failed to fetch from chain",
+					zap.String("chain", res.chain),
+					zap.Error(res.err),
+				)
+				continue
+			}
+
+			// Only count chains with actual activity
+			if res.analytics.TotalTransactions > 0 {
+				result.ChainData[res.chain] = res.analytics
+				result.ActiveChains = append(result.ActiveChains, res.chain)
+				activeChains++
+
+				// Aggregate statistics
+				result.TotalTransactions += res.analytics.TotalTransactions
+				result.TotalBalance += res.analytics.Balance
+				result.TotalBalanceUSD += res.analytics.BalanceUSD
+				result.TotalDeFiInteract += res.analytics.DeFiInteractionCount
+				result.TotalNFTs += res.analytics.NFTCount
+				result.TotalGasUsed += res.analytics.TotalGasUsed
+				result.UniqueContracts += res.analytics.UniqueContractsCount
+
+				// Track oldest wallet age
+				if res.analytics.WalletAgeDays > result.OldestWalletAge {
+					result.OldestWalletAge = res.analytics.WalletAgeDays
+				}
+
+				// Track first transaction across all chains
+				if result.FirstTransaction.IsZero() || res.analytics.FirstTransactionDate.Before(result.FirstTransaction) {
+					result.FirstTransaction = res.analytics.FirstTransactionDate
+				}
+
+				// Track last transaction across all chains
+				if result.LastTransaction.IsZero() || res.analytics.LastTransactionDate.After(result.LastTransaction) {
+					result.LastTransaction = res.analytics.LastTransactionDate
+				}
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	result.TotalChains = activeChains
+
+	logger.Info("Multi-chain analytics completed",
+		zap.String("address", address),
+		zap.Int("activeChains", activeChains),
+		zap.Int("totalTransactions", result.TotalTransactions),
+		zap.Int("walletAge", result.OldestWalletAge),
+	)
+
+	return result, nil
+}
+
+// ConvertMultiChainToBlockchainSummary converts multi-chain analytics to BlockchainSummary
+func ConvertMultiChainToBlockchainSummary(analytics *MultiChainAnalytics) *BlockchainSummary {
+	// Aggregate all token balances across chains
+	tokenBalances := make(map[string]float64)
+
+	for chain, chainData := range analytics.ChainData {
+		// Add native token with chain prefix
+		nativeSymbol := getNativeTokenSymbol(chain)
+		tokenBalances[nativeSymbol] += chainData.Balance
+
+		// Add ERC20 tokens
+		for _, token := range chainData.Tokens {
+			if token.TokenType == "ERC-20" {
+				balance, _ := strconv.ParseFloat(token.Balance, 64)
+				decimals := float64(token.TokenDecimals)
+				if decimals == 0 {
+					decimals = 18
+				}
+				// Use token symbol with chain prefix to avoid conflicts
+				tokenKey := fmt.Sprintf("%s-%s", chain, token.TokenSymbol)
+				tokenBalances[tokenKey] = balance / (1e18 / decimals)
+			}
+		}
+	}
+
+	return &BlockchainSummary{
+		Address:                analytics.Address,
+		WalletAge:              analytics.OldestWalletAge,
+		FirstTransaction:       analytics.FirstTransaction,
+		LastTransaction:        analytics.LastTransaction,
+		TotalTransactions:      analytics.TotalTransactions,
+		TotalVolume:            analytics.TotalBalanceUSD,
+		AverageTransactionSize: analytics.TotalBalanceUSD / float64(max(analytics.TotalTransactions, 1)),
+		DeFiActivities:         []DeFiActivity{},
+		LendingPositions:       []LendingPosition{},
+		LiquidationEvents:      []LiquidationEvent{},
+		NFTHoldings:            analytics.TotalNFTs,
+		TokenBalances:          tokenBalances,
+		TotalPortfolioValue:    analytics.TotalBalanceUSD,
+		LastUpdated:            analytics.LastUpdated,
+	}
+}
+
+// getNativeTokenSymbol returns the native token symbol for a chain
+func getNativeTokenSymbol(chain string) string {
+	nativeTokens := map[string]string{
+		"ethereum": "ETH",
+		"polygon":  "MATIC",
+		"arbitrum": "ETH",
+		"optimism": "ETH",
+		"base":     "ETH",
+		"gnosis":   "xDAI",
+		"zksync":   "ETH",
+		"scroll":   "ETH",
+		"celo":     "CELO",
+		"moonbeam": "GLMR",
+	}
+	if symbol, ok := nativeTokens[chain]; ok {
+		return symbol
+	}
+	return "NATIVE"
+}
+
+// Helper function to get max of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // MockBlockscoutData generates mock Blockscout data for testing

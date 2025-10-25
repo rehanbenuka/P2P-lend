@@ -19,6 +19,7 @@ type EnhancedOracleService struct {
 	creditBureauProvider *providers.CreditBureauProvider
 	plaidProvider        *providers.PlaidProvider
 	blockchainProvider   *providers.BlockchainDataProvider
+	useMockData          bool // Only applies to off-chain APIs, not blockchain data
 }
 
 // ProviderData contains data fetched from all providers
@@ -37,6 +38,7 @@ func NewEnhancedOracleService(
 	creditBureauProvider *providers.CreditBureauProvider,
 	plaidProvider *providers.PlaidProvider,
 	blockchainProvider *providers.BlockchainDataProvider,
+	useMockData bool,
 ) *EnhancedOracleService {
 	return &EnhancedOracleService{
 		baseService:          baseService,
@@ -45,6 +47,7 @@ func NewEnhancedOracleService(
 		creditBureauProvider: creditBureauProvider,
 		plaidProvider:        plaidProvider,
 		blockchainProvider:   blockchainProvider,
+		useMockData:          useMockData,
 	}
 }
 
@@ -82,8 +85,12 @@ func (s *EnhancedOracleService) CalculateWithProviders(
 		}
 		providerData.Sources = append(providerData.Sources, "blockchain_provider")
 
-		// Also get the raw blockchain data for response
-		providerData.BlockchainData = s.blockchainProvider.MockBlockchainData(address)
+		// Also get the raw blockchain data for response (always real data)
+		providerData.BlockchainData, err = s.blockchainProvider.GetBlockchainSummary(ctx, address, "1")
+		if err != nil {
+			logger.Warn("Failed to fetch raw blockchain data for response", zap.Error(err))
+			// Continue without detailed blockchain data in response
+		}
 	} else {
 		// Use basic on-chain aggregation
 		logger.Info("Fetching on-chain data via direct RPC")
@@ -108,18 +115,32 @@ func (s *EnhancedOracleService) CalculateWithProviders(
 			logger.Error("Failed to fetch enhanced off-chain metrics", zap.Error(err))
 		}
 
-		// Get detailed provider data
+		// Get detailed provider data (respects useMockData flag for off-chain APIs only)
 		if fetchCreditBureau && bureauUserID != "" {
-			providerData.CreditBureauData = s.creditBureauProvider.MockCreditBureauData(bureauUserID)
+			if s.useMockData {
+				providerData.CreditBureauData = s.creditBureauProvider.MockCreditBureauData(bureauUserID)
+			} else {
+				providerData.CreditBureauData, err = s.creditBureauProvider.GetCreditReport(ctx, bureauUserID)
+				if err != nil {
+					logger.Warn("Failed to fetch credit bureau data for response, using mock", zap.Error(err))
+					providerData.CreditBureauData = s.creditBureauProvider.MockCreditBureauData(bureauUserID)
+				}
+			}
 			providerData.Sources = append(providerData.Sources, "credit_bureau")
 		}
 
 		if fetchPlaid && plaidUserID != "" {
-			if plaidAccessToken != "" {
-				// In production, use the access token
-				// plaidData, err := s.plaidProvider.GetAccountSummary(ctx, plaidAccessToken)
+			if s.useMockData {
 				providerData.PlaidData = s.plaidProvider.MockPlaidData(plaidUserID)
+			} else if plaidAccessToken != "" {
+				// In production, use the access token
+				providerData.PlaidData, err = s.plaidProvider.GetAccountSummary(ctx, plaidAccessToken)
+				if err != nil {
+					logger.Warn("Failed to fetch Plaid data for response, using mock", zap.Error(err))
+					providerData.PlaidData = s.plaidProvider.MockPlaidData(plaidUserID)
+				}
 			} else {
+				logger.Warn("No Plaid access token provided, using mock data")
 				providerData.PlaidData = s.plaidProvider.MockPlaidData(plaidUserID)
 			}
 			providerData.Sources = append(providerData.Sources, "plaid")

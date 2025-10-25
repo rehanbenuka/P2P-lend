@@ -16,10 +16,10 @@ import (
 
 // OracleService orchestrates credit score calculation and updates
 type OracleService struct {
-	repo            *repository.ScoreRepository
-	scoringEngine   *scoring.Engine
-	onChainAgg      *aggregator.OnChainAggregator
-	offChainAgg     *aggregator.OffChainAggregator
+	repo             *repository.ScoreRepository
+	scoringEngine    *scoring.Engine
+	onChainAgg       *aggregator.OnChainAggregator
+	offChainAgg      *aggregator.OffChainAggregator
 	blockchainClient *blockchain.OracleClient
 }
 
@@ -254,11 +254,15 @@ func (s *OracleService) HealthCheck(ctx context.Context) map[string]bool {
 	}
 
 	// Check blockchain client
-	if err := s.blockchainClient.HealthCheck(ctx); err != nil {
-		logger.Error("Blockchain client health check failed", zap.Error(err))
-		health["blockchain_client"] = false
+	if s.blockchainClient != nil {
+		if err := s.blockchainClient.HealthCheck(ctx); err != nil {
+			logger.Error("Blockchain client health check failed", zap.Error(err))
+			health["blockchain_client"] = false
+		} else {
+			health["blockchain_client"] = true
+		}
 	} else {
-		health["blockchain_client"] = true
+		health["blockchain_client"] = false // Not configured
 	}
 
 	return health

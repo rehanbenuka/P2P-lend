@@ -81,6 +81,8 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 		basicOnChainAgg,
 		cfg.UseMockData,
 		cfg.PreferBlockscout,
+		cfg.EnableMultiChain,
+		cfg.TargetChains,
 	)
 
 	var blockchainClient *blockchain.OracleClient
@@ -112,6 +114,7 @@ func Setup(router *gin.Engine, cfg *config.Config) {
 		creditBureauProvider,
 		plaidProvider,
 		blockchainProvider,
+		cfg.UseMockData,
 	)
 
 	// Initialize handlers
